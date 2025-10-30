@@ -21,11 +21,11 @@ def main() -> None:
         use_double_precision=False
     )
     
-
+    fresnel_batch = np.fft.fftshift(fresnel_batch, axes=(-2, -1))
     write_video(fresnel_batch  , "output_video", fps=30, format='avi')
 
     first_frame = fresnel_batch[0]
-    plt.imshow(first_frame, cmap='gray')
+    plt.imshow(np.abs(first_frame), cmap='gray')
     plt.title("First Frame")
     plt.show()
 
