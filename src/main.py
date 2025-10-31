@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from readers.holo_reader import HoloReader
 from writers.video_writer import write_video
 from compute.space_transforms.fresnel import fresnel_transform
-
+from compute.time_transforms.pca import pca
 def main() -> None:
     filename = "E:\\250512\\250512_GUJ_L.holo"
     reader = HoloReader(filename, load_all_file=False)
@@ -12,7 +12,7 @@ def main() -> None:
 
     batch = reader.read_frame_batch(batch_size=150, frame_position=1)
 
-    fresnel_batch = fresnel_transform(
+    batch = fresnel_transform(
         frames=batch,
         z=reader.footer['compute_settings']['image_rendering']['propagation_distance'],
         wavelength=reader.footer['compute_settings']['image_rendering']['lambda'],
@@ -21,10 +21,13 @@ def main() -> None:
         use_double_precision=False
     )
     
-    fresnel_batch = np.fft.fftshift(fresnel_batch, axes=(-2, -1))
-    write_video(fresnel_batch  , "output_video", fps=30, format='avi')
+    batch = np.fft.fftshift(batch, axes=(-2, -1))
 
-    first_frame = fresnel_batch[0]
+    batch = pca(batch)
+
+    write_video(batch  , "output_video", fps=30, format='avi')
+
+    first_frame = batch[0]
     plt.imshow(np.abs(first_frame), cmap='gray')
     plt.title("First Frame")
     plt.show()

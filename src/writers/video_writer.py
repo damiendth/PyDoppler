@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+from postprocessing.normalize import normalize_frames
+
 
 def write_video(
     frames: np.ndarray, 
@@ -24,10 +26,7 @@ def write_video(
     num_frames, height, width = frames.shape
     
     # Convert to uint8 if needed
-    if frames.dtype != np.uint8:
-        if np.iscomplexobj(frames):
-            frames = np.abs(frames)
-        frames = cv2.normalize(frames, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) # type: ignore
+    frames = normalize_frames(frames)
     
     # Set codec based on format
     codec = 'XVID' if format == 'avi' else 'mp4v'
@@ -38,7 +37,7 @@ def write_video(
         output_file = f"{output_file}.{format}"
     
     # Create video writer and write frames
-    video_writer = cv2.VideoWriter("output/" + output_file, fourcc, fps, (width, height))
+    video_writer = cv2.VideoWriter( output_file, fourcc, fps, (width, height))
     
     for i in range(num_frames):
         frame_bgr = cv2.cvtColor(frames[i], cv2.COLOR_GRAY2BGR)

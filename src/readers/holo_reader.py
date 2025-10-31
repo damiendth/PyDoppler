@@ -5,7 +5,7 @@ import numpy as np
 import struct
 
 class HoloReader:
-    # --- Class-level attribute declarations ---
+
     filename: str
     all_frames: Optional[np.ndarray]
     version: int
