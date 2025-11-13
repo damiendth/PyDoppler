@@ -1,0 +1,22 @@
+import numpy as np
+from settings.settings import Settings
+
+
+def batch_average(frames: np.ndarray, start: int = 0, end: int = -1) -> np.ndarray:
+    if start < 0:
+        start = 0
+    if end == -1 or end > frames.shape[0]:
+        end = frames.shape[0]
+
+    return np.mean(np.abs(frames[start:end]), axis=0)
+
+
+def sliding_average(frames: np.ndarray, settings: Settings) -> np.ndarray:
+    output_frames = []
+
+    for i in range(settings.batch_size):
+        output_frames.append(
+            batch_average(frames, start=i, end=i + settings.sliding_average_window_size)
+        )
+
+    return np.stack(output_frames)

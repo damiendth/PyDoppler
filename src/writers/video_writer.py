@@ -4,14 +4,11 @@ from postprocessing.normalize import normalize_frames
 
 
 def write_video(
-    frames: np.ndarray, 
-    output_file: str, 
-    fps: int = 30, 
-    format: str = 'avi'
+    frames: np.ndarray, output_file: str, fps: int = 30, format: str = "avi"
 ) -> None:
     """
     Write greyscale frames to video file with AVI (default) or MP4 format.
-    
+
     Parameters:
     - frames: 3D numpy array (number of frames, height, width) - greyscale
     - output_file: Output file path
@@ -20,28 +17,30 @@ def write_video(
     """
 
     # Validate format
-    if format not in ['avi', 'mp4']:
+    if format not in ["avi", "mp4"]:
         raise ValueError("Format must be 'avi' or 'mp4'")
-    
+
     num_frames, height, width = frames.shape
-    
+
     # Convert to uint8 if needed
-    frames = normalize_frames(frames)
-    
+    frames = frames.astype(np.uint8)
+
     # Set codec based on format
-    codec = 'XVID' if format == 'avi' else 'mp4v'
-    fourcc = cv2.VideoWriter_fourcc(*codec) # type: ignore
-    
+    codec = "XVID" if format == "avi" else "mp4v"
+    fourcc = cv2.VideoWriter_fourcc(*codec)  # type: ignore
+
     # Ensure correct file extension
-    if not output_file.endswith(f'.{format}'):
+    if not output_file.endswith(f".{format}"):
         output_file = f"{output_file}.{format}"
-    
+
     # Create video writer and write frames
-    video_writer = cv2.VideoWriter( output_file, fourcc, fps, (width, height))
-    
+    video_writer = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
+
     for i in range(num_frames):
         frame_bgr = cv2.cvtColor(frames[i], cv2.COLOR_GRAY2BGR)
         video_writer.write(frame_bgr)
-    
+
     video_writer.release()
-    print(f"Video saved: output/{output_file} ({format}, {num_frames} frames, {fps} FPS)")
+    print(
+        f"Video saved: output/{output_file} ({format}, {num_frames} frames, {fps} FPS)"
+    )

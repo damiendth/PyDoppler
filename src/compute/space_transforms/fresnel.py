@@ -1,6 +1,8 @@
 import numpy as np
 from typing import Tuple
 
+from settings.settings import Settings
+
 def fresnel_kernel(
     Nx: int,
     Ny: int,
@@ -45,12 +47,7 @@ def fresnel_kernel(
 
 
 def fresnel_transform(
-    frames: np.ndarray,
-    z: float,
-    wavelength: float,
-    x_step: float,
-    y_step: float,
-    use_double_precision: bool = False
+    frames: np.ndarray, settings : Settings
 ) -> np.ndarray:
     """
     Apply Fresnel propagation to a batch of complex frames using a precomputed kernel and phase factor.
@@ -76,6 +73,13 @@ def fresnel_transform(
 
     nbframes, Ny, Nx = frames.shape
 
+    z = settings.space_transform.z
+    wavelength = settings.space_transform.wavelength
+    x_step = settings.space_transform.x_step
+    y_step = settings.space_transform.y_step
+    use_double_precision = settings.space_transform.use_double_precision
+    shift_after = settings.space_transform.shift_after
+
     kernel, phase_factor = fresnel_kernel(
         Nx, Ny,
         z,
@@ -88,4 +92,7 @@ def fresnel_transform(
     frames_out = np.fft.fft2(frames * kernel, axes=(1, 2))
     frames_out *= phase_factor
 
+    if shift_after:
+        frames_out = np.fft.fftshift(frames_out, axes=(-2, -1))
+        
     return frames_out

@@ -4,6 +4,7 @@ from typing import Optional
 import numpy as np
 import struct
 
+
 class HoloReader:
 
     filename: str
@@ -22,15 +23,22 @@ class HoloReader:
         self.all_frames = None
 
         # --- Parse header ---
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             header_bytes = f.read(29)  # first 29 bytes to read fixed header fields
 
         # unpack header
-        magic_number, version, bit_depth, width, height, num_frames, total_size, endianness = struct.unpack(
-            '<4sHHIIIQB', header_bytes
-        )
+        (
+            magic_number,
+            version,
+            bit_depth,
+            width,
+            height,
+            num_frames,
+            total_size,
+            endianness,
+        ) = struct.unpack("<4sHHIIIQB", header_bytes)
 
-        if magic_number != b'HOLO':
+        if magic_number != b"HOLO":
             raise ValueError("Bad holo file.")
 
         self.version = version
@@ -42,14 +50,16 @@ class HoloReader:
         self.endianness = endianness
 
         # --- Parse footer ---
-        footer_skip = 64 + self.frame_width * self.frame_height * self.num_frames * (self.bit_depth // 8)
+        footer_skip = 64 + self.frame_width * self.frame_height * self.num_frames * (
+            self.bit_depth // 8
+        )
         file_size = os.path.getsize(filename)
         footer_size = file_size - footer_skip
 
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             f.seek(footer_skip)
             footer_unparsed = f.read(footer_size)
-            self.footer = json.loads(footer_unparsed.decode('utf-8'))
+            self.footer = json.loads(footer_unparsed.decode("utf-8"))
 
         # Optionally load all frames into RAM
         if load_all_file:
@@ -66,32 +76,42 @@ class HoloReader:
         Returns:
         - np.ndarray of shape (batch_size, frame_height, frame_width)
         """
-        frame_offset = frame_position - 1
-        frames = np.zeros((batch_size, self.frame_height, self.frame_width), dtype=np.float32)
+        frame_offset = frame_position
+        frames = np.zeros(
+            (batch_size, self.frame_height, self.frame_width), dtype=np.float32
+        )
 
         if self.all_frames is not None:
-            return self.all_frames[:, :, frame_offset:frame_offset + batch_size]
+            return self.all_frames[:, :, frame_offset : frame_offset + batch_size]
 
         frame_size = self.frame_width * self.frame_height * (self.bit_depth // 8)
-        endian_char = '<' if self.endianness == 0 else '>'
+        endian_char = "<" if self.endianness == 0 else ">"
 
         retrycnt = 0
         retry = True
 
         while retry and retrycnt < 3:
             retry = False
-            with open(self.filename, 'rb') as f:
+            with open(self.filename, "rb") as f:
                 for i in range(batch_size):
                     f.seek(64 + frame_size * (frame_offset + i))
                     try:
                         if self.bit_depth == 8:
-                            data = np.frombuffer(f.read(self.frame_width * self.frame_height), dtype=np.uint8)
+                            data = np.frombuffer(
+                                f.read(self.frame_width * self.frame_height),
+                                dtype=np.uint8,
+                            )
                         elif self.bit_depth == 16:
-                            data = np.frombuffer(f.read(self.frame_width * self.frame_height * 2), dtype=endian_char + 'u2')
+                            data = np.frombuffer(
+                                f.read(self.frame_width * self.frame_height * 2),
+                                dtype=endian_char + "u2",
+                            )
                         else:
                             raise ValueError(f"Unsupported bit depth: {self.bit_depth}")
 
-                        frames[i, :, :] = data.reshape((self.frame_height, self.frame_width))
+                        frames[i, :, :] = data.reshape(
+                            (self.frame_height, self.frame_width)
+                        )
 
                     except Exception as e:
                         retry = True
