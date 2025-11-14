@@ -48,12 +48,12 @@ class Executor:
     def execute(self) -> None:
 
         total = []
-        
+
         for i in range(0, self.reader.num_frames, self.settings.batch_stride):
             if i // self.settings.batch_stride == 32:
                 break
             print(f"Processing batch number {i // self.settings.batch_stride + 1}...")
-            
+
             batch = self.reader.read_frame_batch(
                 batch_size=self.settings.batch_size, frame_position=i
             )
@@ -61,8 +61,9 @@ class Executor:
             processed_batch = self.run_pipeline(batch)
             avg_frame = batch_average(processed_batch)
             total.append(avg_frame)
-        
+
         print("Writing output video...")
+
         sliding_average_frames = sliding_average(np.array(total), self.settings)
         write_video(
             sliding_average_frames,

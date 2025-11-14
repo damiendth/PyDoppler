@@ -20,10 +20,11 @@ def main() -> None:
     reader = HoloReader(filename, load_all_file=False)
     executor = Executor(settings=settings, reader=reader)
 
-    settings.batch_size = 256
+    settings.batch_size = 32
+    settings.batch_stride = 32
+
     settings.sliding_average_window_size = 32
     settings.use_double_precision = False
-    settings.batch_stride = 256
 
     settings.space_transform = SpaceTransformSettings(
         z=reader.footer["compute_settings"]["image_rendering"]["propagation_distance"],

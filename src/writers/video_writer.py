@@ -26,7 +26,7 @@ def write_video(
     frames = frames.astype(np.uint8)
 
     # Set codec based on format
-    codec = "XVID" if format == "avi" else "mp4v"
+    codec = "MJPG" if format == "avi" else "mp4v"
     fourcc = cv2.VideoWriter_fourcc(*codec)  # type: ignore
 
     # Ensure correct file extension

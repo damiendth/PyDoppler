@@ -1,6 +1,6 @@
 import numpy as np
 from settings.settings import Settings
-
+import matplotlib.pyplot as plt
 
 def batch_average(frames: np.ndarray, start: int = 0, end: int = -1) -> np.ndarray:
     if start < 0:
@@ -14,7 +14,15 @@ def batch_average(frames: np.ndarray, start: int = 0, end: int = -1) -> np.ndarr
 def sliding_average(frames: np.ndarray, settings: Settings) -> np.ndarray:
     output_frames = []
 
-    for i in range(settings.batch_size):
+    for i in range(frames.shape[0]):
+        # avg = batch_average(
+        #     frames,
+        #     start=i,
+        #     end=i + settings.sliding_average_window_size
+        # )
+        # plt.imshow(avg, cmap="gray")
+        # plt.title("Final Average Frame")
+        # plt.show()
         output_frames.append(
             batch_average(frames, start=i, end=i + settings.sliding_average_window_size)
         )
