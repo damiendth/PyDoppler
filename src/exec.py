@@ -50,7 +50,7 @@ class Executor:
         total = []
 
         for i in range(0, self.reader.num_frames, self.settings.batch_stride):
-            if i // self.settings.batch_stride == 32:
+            if i // self.settings.batch_stride == 12:
                 break
             print(f"Processing batch number {i // self.settings.batch_stride + 1}...")
 

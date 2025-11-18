@@ -10,7 +10,7 @@ def normalize_frames(frames: np.ndarray, settings: Settings) -> np.ndarray:
 
     normalized = []
     for el in frames:
-        norm_frame = cv2.normalize(el, None, 0, 255, cv2.NORM_MINMAX)  # type: ignore
+        norm_frame = cv2.normalize(el, None, 0, 255, cv2.NORM_MINMAX) # type: ignore
         normalized.append(norm_frame)
 
     return np.stack(normalized)
