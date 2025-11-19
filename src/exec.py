@@ -28,8 +28,8 @@ class Executor:
     _cuda_pipeline: list
     _cuda_streams: list
 
-    def __init__(
-        self, settings: Settings, reader: HoloReader, use_cuda: bool = False
+    def __init__(  # ONLY INSTANCIATE after setting up settings and reader
+        self, settings: Settings, reader: HoloReader
     ) -> None:
         self.settings = settings
         self.reader = reader
@@ -37,7 +37,7 @@ class Executor:
         self._cuda_pipeline = []
         self._cuda_streams = []
 
-        if use_cuda:
+        if self.settings.use_cuda:
             for _ in range(
                 reader.num_frames // settings.batch_size
                 if reader.num_frames % settings.batch_size == 0
@@ -103,12 +103,11 @@ class Executor:
             with current_stream:
                 batch_gpu = cp.asarray(batch)
 
-                for step in self._pipeline:
+                for step in self._cuda_pipeline:
                     batch_gpu = step(frames=batch_gpu, settings=self.settings)
 
-                processed_batch = cp.asnumpy(batch_gpu)
 
-            avg_frame = batch_average_gpu(processed_batch, stream=current_stream)
+            avg_frame = batch_average_gpu(batch_gpu, stream=current_stream)
             return avg_frame
 
         thread_num = (
@@ -139,9 +138,9 @@ class Executor:
         print("Applying sliding average...")
 
         if self.settings.use_cuda:
-            sliding_average_frames = sliding_average_gpu(
-                cp.asarray(np.array(total)), self.settings
-            )
+            # total is list of cp.ndarray returned by worker_gpu
+            total_gpu = cp.stack(total)  # shape: (num_batches, H, W)
+            sliding_average_frames = sliding_average_gpu(total_gpu, self.settings)
             sliding_average_frames = cp.asnumpy(sliding_average_frames)
         else:
             sliding_average_frames = sliding_average(np.array(total), self.settings)
@@ -149,7 +148,7 @@ class Executor:
         plt.imshow(sliding_average_frames[0], cmap="gray")
         plt.title("Final Average Frame")
         plt.show()
-        
+
         print("Writing output video...")
         write_video(
             sliding_average_frames,

@@ -18,7 +18,6 @@ def main() -> None:
 
     settings = Settings()
     reader = HoloReader(filename, load_all_file=False)
-    executor = Executor(settings=settings, reader=reader)
 
     settings.batch_size = 32
     settings.batch_stride = 32
@@ -26,7 +25,7 @@ def main() -> None:
     settings.sliding_average_window_size = 32
     settings.use_double_precision = False
     settings.use_cuda = True
-    settings.num_workers =  -1
+    settings.num_workers = -1
 
     settings.space_transform = SpaceTransformSettings(
         z=reader.footer["compute_settings"]["image_rendering"]["propagation_distance"],
@@ -35,17 +34,18 @@ def main() -> None:
         y_step=reader.footer["info"]["pixel_pitch"]["y"] * 1e-6,
         use_double_precision=False,
         shift_after=True,
-        transform_type=TransformType.FRESNEL
+        transform_type=TransformType.FRESNEL,
     )
     settings.time_transform = TimeTransformSettings()
     settings.time_transform.transform_type = TransformType.PCA
 
     filename = "E:\\250512\\250512_GUJ_L.holo"
+
     reader = HoloReader(filename, load_all_file=False)
+    executor = Executor(settings=settings, reader=reader)
 
     executor.build_pipe()
     executor.execute()
-
 
 
 if __name__ == "__main__":
