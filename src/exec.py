@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from compute.time_transforms.stft import stft
@@ -9,6 +10,8 @@ from settings.settings import Settings
 from writers.video_writer import write_video
 from compute.space_transforms.fresnel import fresnel_transform
 from compute.time_transforms.pca import pca
+import cupy as cp
+from concurrent.futures import ThreadPoolExecutor
 
 
 class Executor:
@@ -17,11 +20,26 @@ class Executor:
     reader: HoloReader
 
     _pipeline: list
+    _cuda_streams: list
 
-    def __init__(self, settings: Settings, reader: HoloReader) -> None:
+    _use_cuda: bool
+
+    def __init__(
+        self, settings: Settings, reader: HoloReader, use_cuda: bool = False
+    ) -> None:
         self.settings = settings
         self.reader = reader
         self._pipeline = []
+        self._cuda_streams = []
+        self._use_cuda = use_cuda
+
+        if use_cuda:
+            for _ in range(
+                reader.num_frames // settings.batch_size
+                if reader.num_frames % settings.batch_size == 0
+                else reader.num_frames // settings.batch_size + 1
+            ):
+                self._cuda_streams.append(cp.cuda.Stream())
 
     def build_pipe(self) -> None:
 
@@ -46,25 +64,47 @@ class Executor:
         return batch
 
     def execute(self) -> None:
+        print("Starting processing...")
+        
+        def worker(batch_index: int) -> np.ndarray:
+            print(f"Processing batch number {batch_index + 1}...")
 
-        total = []
-
-        for i in range(0, self.reader.num_frames, self.settings.batch_stride):
-            if i // self.settings.batch_stride == 12:
-                break
-            print(f"Processing batch number {i // self.settings.batch_stride + 1}...")
-
+            frame_position = batch_index * self.settings.batch_stride
             batch = self.reader.read_frame_batch(
-                batch_size=self.settings.batch_size, frame_position=i
+                batch_size=self.settings.batch_size, frame_position=frame_position
             )
 
             processed_batch = self.run_pipeline(batch)
             avg_frame = batch_average(processed_batch)
-            total.append(avg_frame)
+            return avg_frame
+
+        thread_num = (
+            self.settings.num_workers
+            if self.settings.num_workers > 0
+            else os.cpu_count()
+        )
+
+        with ThreadPoolExecutor(max_workers=thread_num) as executor:
+            futures = []
+            num_batches = (
+                self.reader.num_frames // self.settings.batch_size
+                if self.reader.num_frames % self.settings.batch_size == 0
+                else self.reader.num_frames // self.settings.batch_size + 1
+            )
+
+            for batch_index in range(num_batches):
+                futures.append(executor.submit(worker, batch_index))
+
+            total = [future.result() for future in futures]
 
         print("Writing output video...")
 
         sliding_average_frames = sliding_average(np.array(total), self.settings)
+
+        plt.imshow(sliding_average_frames[0], cmap='gray')
+        plt.title("Final Average Frame")
+        plt.show()
+
         write_video(
             sliding_average_frames,
             f"{self.settings.output_video_name}_batch_{1}",

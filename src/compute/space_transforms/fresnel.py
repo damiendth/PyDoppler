@@ -15,7 +15,7 @@ def fresnel_kernel(
     """
     Compute the Fresnel propagation kernel and phase factor.
     """
-    print(f"Computing Fresnel kernel with Nx={Nx}, Ny={Ny}, z_propagation_distance={z}, wavelength={wavelength}, x_step={x_step}, y_step={y_step}, use_double_precision={use_double_precision}")
+    # print(f"Computing Fresnel kernel with Nx={Nx}, Ny={Ny}, z_propagation_distance={z}, wavelength={wavelength}, x_step={x_step}, y_step={y_step}, use_double_precision={use_double_precision}")
 
     Nx  = float(Nx) # type: ignore
     Ny  = float(Ny) # type: ignore

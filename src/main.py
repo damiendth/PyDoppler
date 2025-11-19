@@ -25,6 +25,7 @@ def main() -> None:
 
     settings.sliding_average_window_size = 32
     settings.use_double_precision = False
+    settings.num_workers =  -1
 
     settings.space_transform = SpaceTransformSettings(
         z=reader.footer["compute_settings"]["image_rendering"]["propagation_distance"],

@@ -10,6 +10,7 @@ class Settings:
 
     batch_size: int
     batch_stride: int
+    num_workers: int
     sliding_average_window_size: int
 
     use_double_precision: bool
