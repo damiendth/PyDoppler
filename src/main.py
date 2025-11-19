@@ -25,6 +25,7 @@ def main() -> None:
 
     settings.sliding_average_window_size = 32
     settings.use_double_precision = False
+    settings.use_cuda = True
     settings.num_workers =  -1
 
     settings.space_transform = SpaceTransformSettings(
@@ -36,7 +37,7 @@ def main() -> None:
         shift_after=True,
         transform_type=TransformType.FRESNEL
     )
-
+    settings.time_transform = TimeTransformSettings()
     settings.time_transform.transform_type = TransformType.PCA
 
     filename = "E:\\250512\\250512_GUJ_L.holo"

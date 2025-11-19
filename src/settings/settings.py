@@ -14,4 +14,5 @@ class Settings:
     sliding_average_window_size: int
 
     use_double_precision: bool
+    use_cuda: bool
     output_video_name: str = "output_video"
