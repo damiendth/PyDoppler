@@ -2,18 +2,18 @@ import cupy as cp
 from typing import Optional
 from settings.settings import Settings
 
+
 def batch_average_gpu(
-    frames: cp.ndarray, 
-    start: int = 0, 
-    end: int = -1, 
-    stream: Optional[cp.cuda.Stream] = None
+    frames: cp.ndarray,
+    start: int = 0,
+    end: int = -1,
+    stream: Optional[cp.cuda.Stream] = None,
 ) -> cp.ndarray:
     """
     Compute batch average of frames[start:end], normalize to [0,255], fully on GPU.
     """
     stream = stream or cp.cuda.Stream.null
-
-    with stream: # type: ignore
+    with stream:  # type: ignore
         n_frames = frames.shape[0]
         if start < 0:
             start = 0
@@ -31,15 +31,11 @@ def batch_average_gpu(
         range_val = cp.where(range_val == 0, 1, range_val)
 
         normalized_avg = 255 * (avg - min_val) / range_val
-        # normalized_avg = normalized_avg.astype(cp.float32)
-
     return normalized_avg
 
 
 def sliding_average_gpu(
-    frames: cp.ndarray, 
-    settings: Settings, 
-    stream: Optional[cp.cuda.Stream] = None
+    frames: cp.ndarray, settings: Settings, stream: Optional[cp.cuda.Stream] = None
 ) -> cp.ndarray:
     """
     Apply a sliding average over frames with window size from settings.
@@ -51,7 +47,7 @@ def sliding_average_gpu(
 
     output_frames = []
 
-    with stream: # type: ignore
+    with stream:  # type: ignore
         for i in range(n_frames):
             end = min(i + window_size, n_frames)
             avg_frame = batch_average_gpu(frames, start=i, end=end, stream=stream)

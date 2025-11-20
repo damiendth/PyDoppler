@@ -1,8 +1,11 @@
+from functools import lru_cache
 import numpy as np
 from typing import Tuple
 
 from settings.settings import Settings
 
+
+@lru_cache(maxsize=32)
 def fresnel_kernel(
     Nx: int,
     Ny: int,
@@ -10,15 +13,15 @@ def fresnel_kernel(
     wavelength: float,
     x_step: float,
     y_step: float,
-    use_double_precision: bool = True
+    use_double_precision: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the Fresnel propagation kernel and phase factor.
     """
     # print(f"Computing Fresnel kernel with Nx={Nx}, Ny={Ny}, z_propagation_distance={z}, wavelength={wavelength}, x_step={x_step}, y_step={y_step}, use_double_precision={use_double_precision}")
 
-    Nx  = float(Nx) # type: ignore
-    Ny  = float(Ny) # type: ignore
+    Nx = float(Nx)  # type: ignore
+    Ny = float(Ny)  # type: ignore
     x = (np.arange(Nx) - np.round(Nx / 2)) * x_step
     y = (np.arange(Ny) - np.round(Ny / 2)) * y_step
     X, Y = np.meshgrid(x, y)
@@ -26,7 +29,8 @@ def fresnel_kernel(
     kernel = np.exp(1j * np.pi / (wavelength * z) * (X**2 + Y**2))
 
     phase_factor = (
-        1j / wavelength
+        1j
+        / wavelength
         * np.exp(-2j * np.pi * z / wavelength)
         * np.exp(
             -1j
@@ -46,9 +50,7 @@ def fresnel_kernel(
     return kernel, phase_factor
 
 
-def fresnel_transform(
-    frames: np.ndarray, settings : Settings
-) -> np.ndarray:
+def fresnel_transform(frames: np.ndarray, settings: Settings) -> np.ndarray:
     """
     Apply Fresnel propagation to a batch of complex frames using a precomputed kernel and phase factor.
 
@@ -77,16 +79,11 @@ def fresnel_transform(
     wavelength = settings.space_transform.wavelength
     x_step = settings.space_transform.x_step
     y_step = settings.space_transform.y_step
-    use_double_precision = settings.space_transform.use_double_precision
+    use_double_precision = settings.use_double_precision
     shift_after = settings.space_transform.shift_after
 
     kernel, phase_factor = fresnel_kernel(
-        Nx, Ny,
-        z,
-        wavelength,
-        x_step,
-        y_step,
-        use_double_precision=use_double_precision
+        Nx, Ny, z, wavelength, x_step, y_step, use_double_precision=use_double_precision
     )
 
     frames_out = np.fft.fft2(frames * kernel, axes=(1, 2))
@@ -94,5 +91,5 @@ def fresnel_transform(
 
     if shift_after:
         frames_out = np.fft.fftshift(frames_out, axes=(-2, -1))
-        
+
     return frames_out

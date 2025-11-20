@@ -26,13 +26,13 @@ def main() -> None:
     settings.use_double_precision = False
     settings.use_cuda = True
     settings.num_workers = -1
+    settings.num_gpu_workers = -1
 
     settings.space_transform = SpaceTransformSettings(
         z=reader.footer["compute_settings"]["image_rendering"]["propagation_distance"],
         wavelength=reader.footer["compute_settings"]["image_rendering"]["lambda"],
         x_step=reader.footer["info"]["pixel_pitch"]["x"] * 1e-6,
         y_step=reader.footer["info"]["pixel_pitch"]["y"] * 1e-6,
-        use_double_precision=False,
         shift_after=True,
         transform_type=TransformType.FRESNEL,
     )
@@ -45,7 +45,11 @@ def main() -> None:
     executor = Executor(settings=settings, reader=reader)
 
     executor.build_pipe()
-    executor.execute()
+
+    if settings.use_cuda:
+        executor.execute_gpu()
+    else:
+        executor.execute()
 
 
 if __name__ == "__main__":

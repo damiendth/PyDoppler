@@ -12,11 +12,13 @@ from postprocessing.average import batch_average, sliding_average
 from postprocessing.normalize import normalize_frames
 from readers.holo_reader import HoloReader
 from settings.settings import Settings
+from utility import print_frame
 from writers.video_writer import write_video
 from compute.space_transforms.fresnel import fresnel_transform
 from compute.time_transforms.pca import pca
 import cupy as cp
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 
 class Executor:
@@ -28,22 +30,12 @@ class Executor:
     _cuda_pipeline: list
     _cuda_streams: list
 
-    def __init__(  # ONLY INSTANCIATE after setting up settings and reader
-        self, settings: Settings, reader: HoloReader
-    ) -> None:
+    def __init__(self, settings: Settings, reader: HoloReader) -> None:
         self.settings = settings
         self.reader = reader
         self._pipeline = []
         self._cuda_pipeline = []
         self._cuda_streams = []
-
-        if self.settings.use_cuda:
-            for _ in range(
-                reader.num_frames // settings.batch_size
-                if reader.num_frames % settings.batch_size == 0
-                else reader.num_frames // settings.batch_size + 1
-            ):
-                self._cuda_streams.append(cp.cuda.Stream())
 
     def build_pipe(self) -> None:
 
@@ -54,6 +46,7 @@ class Executor:
                 self._pipeline.append(stft)
             elif self.settings.time_transform.transform_type == TransformType.PCA:
                 self._pipeline.append(pca)
+            self._pipeline.append(normalize_frames)
 
         else:
             if self.settings.space_transform.transform_type == TransformType.FRESNEL:
@@ -62,8 +55,7 @@ class Executor:
                 self._cuda_pipeline.append(stft_cuda)
             elif self.settings.time_transform.transform_type == TransformType.PCA:
                 self._cuda_pipeline.append(pca_cuda)
-
-        self._cuda_pipeline.append(normalize_frames_cuda)
+            self._cuda_pipeline.append(normalize_frames_cuda)
 
     def clear_pipe(self) -> None:
         self._pipeline = []
@@ -75,9 +67,77 @@ class Executor:
 
         return batch
 
-    def execute(self) -> None:
-        print("Starting processing...")
+    def execute_gpu(self) -> None:
 
+        def worker_gpu(batch_index: int, stream_index: int) -> np.ndarray:
+            print(f"Processing batch number {batch_index + 1} on GPU...")
+
+            frame_position = batch_index * self.settings.batch_stride
+            batch = self.reader.read_frame_batch(
+                batch_size=self.settings.batch_size, frame_position=frame_position
+            )
+
+            current_stream = self._cuda_streams[stream_index]
+
+            with current_stream:
+                batch_gpu = cp.asarray(batch)
+
+                if self.settings.use_double_precision:
+                    batch_gpu = batch_gpu.astype(cp.float64)
+
+                for step in self._cuda_pipeline:
+                    batch_gpu = step(frames=batch_gpu, settings=self.settings)
+
+            avg_frame = batch_average_gpu(batch_gpu, stream=current_stream)
+            del batch_gpu
+
+            return avg_frame
+
+        print("Starting processing on GPU...")
+        first_time = time.time()
+
+        stream_num = (
+            self.settings.num_gpu_workers if self.settings.num_gpu_workers > 0 else 4
+        )
+        self._cuda_streams = [cp.cuda.Stream() for _ in range(stream_num)]
+
+        num_batches = (
+            self.reader.num_frames // self.settings.batch_size
+            if self.reader.num_frames % self.settings.batch_size == 0
+            else self.reader.num_frames // self.settings.batch_size + 1
+        )
+        total = []
+
+        for batch_index in range(num_batches):
+            stream_index = batch_index % stream_num
+            self._cuda_streams[stream_index].synchronize()
+            avg_frame = worker_gpu(batch_index, stream_index)
+            total.append(avg_frame)
+
+        for stream in self._cuda_streams:
+            stream.synchronize()
+
+        middle_time = time.time()
+        print(f"GPU processing time: {middle_time - first_time} seconds")
+        print("Applying sliding average...")
+
+        total_gpu = cp.stack(total)
+        sliding_average_frames = sliding_average_gpu(total_gpu, self.settings)
+        sliding_average_frames = cp.asnumpy(sliding_average_frames)
+        print(f"sliding average time: {time.time() - middle_time} seconds")
+        # print_frame(sliding_average_frames[0])
+
+        print("Writing output video...")
+        write_video(
+            sliding_average_frames,
+            f"{self.settings.output_video_name}_batch_{1}",
+            fps=30,
+            format="avi",
+        )
+        end_time = time.time()
+        print(f"Total execution time: {end_time - first_time} seconds")
+
+    def execute(self) -> None:
         def worker_cpu(batch_index: int) -> np.ndarray:
             print(f"Processing batch number {batch_index + 1} on CPU...")
 
@@ -90,25 +150,7 @@ class Executor:
             avg_frame = batch_average(processed_batch)
             return avg_frame
 
-        def worker_gpu(batch_index: int) -> np.ndarray:
-            print(f"Processing batch number {batch_index + 1} on GPU...")
-
-            frame_position = batch_index * self.settings.batch_stride
-            batch = self.reader.read_frame_batch(
-                batch_size=self.settings.batch_size, frame_position=frame_position
-            )
-
-            current_stream = self._cuda_streams[batch_index]
-
-            with current_stream:
-                batch_gpu = cp.asarray(batch)
-
-                for step in self._cuda_pipeline:
-                    batch_gpu = step(frames=batch_gpu, settings=self.settings)
-
-
-            avg_frame = batch_average_gpu(batch_gpu, stream=current_stream)
-            return avg_frame
+        print("Starting processing on CPU...")
 
         thread_num = (
             self.settings.num_workers
@@ -125,34 +167,20 @@ class Executor:
             )
 
             for batch_index in range(num_batches):
-                worker = worker_cpu if not self.settings.use_cuda else worker_gpu
+                worker = worker_cpu
                 futures.append(executor.submit(worker, batch_index))
 
             total = [future.result() for future in futures]
 
-        if self.settings.use_cuda:
-            # Ensure all GPU streams have completed
-            for stream in self._cuda_streams:
-                stream.synchronize()
-
         print("Applying sliding average...")
+        sliding_average_frames = sliding_average(np.array(total), self.settings)
 
-        if self.settings.use_cuda:
-            # total is list of cp.ndarray returned by worker_gpu
-            total_gpu = cp.stack(total)  # shape: (num_batches, H, W)
-            sliding_average_frames = sliding_average_gpu(total_gpu, self.settings)
-            sliding_average_frames = cp.asnumpy(sliding_average_frames)
-        else:
-            sliding_average_frames = sliding_average(np.array(total), self.settings)
-
-        plt.imshow(sliding_average_frames[0], cmap="gray")
-        plt.title("Final Average Frame")
-        plt.show()
+        print_frame(sliding_average_frames[0])
 
         print("Writing output video...")
         write_video(
             sliding_average_frames,
             f"{self.settings.output_video_name}_batch_{1}",
-            fps=1,
+            fps=30,
             format="avi",
         )
